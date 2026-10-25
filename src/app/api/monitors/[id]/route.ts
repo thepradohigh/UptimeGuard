@@ -1,45 +1,65 @@
-import { prisma, startPoller } from '@/lib/poller';
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { prisma, startPoller } = await import("@/lib/poller");
 
-// PATCH (Обновление монитора)
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const body = await req.json();
-    const { name, url, method, interval } = body;
-
-    const updatedMonitor = await prisma.monitor.update({
+    const monitor = await prisma.monitor.findUnique({
       where: { id: params.id },
-      data: {
-        name,
-        url,
-        method,
-        interval: Number(interval),
-      },
     });
 
-    // Перезапускаем поллер для обновления интервалов
-    await startPoller();
+    if (!monitor) {
+      return NextResponse.json({ error: "Не найден" }, { status: 404 });
+    }
 
-    return NextResponse.json(updatedMonitor);
-  } catch (err) {
-    console.error('Update error:', err);
-    return NextResponse.json({ error: 'Failed to update monitor' }, { status: 500 });
+    return NextResponse.json(monitor);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// DELETE (Удаление монитора)
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    await prisma.monitor.delete({
+    const body = await request.json();
+    const { name, url, method, interval, status } = body;
+
+    const updated = await prisma.monitor.update({
       where: { id: params.id },
+      data: {
+        ...(name && { name }),
+        ...(url && { url }),
+        ...(method && { method }),
+        ...(interval && { interval: Number(interval) }),
+        ...(status && { status }),
+      },
     });
 
-    // Перезапускаем поллер, чтобы остановить проверку удаленного монитора
+    await startPoller();
+
+    return NextResponse.json(updated);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    await prisma.ping.deleteMany({ where: { monitorId: params.id } });
+    await prisma.incident.deleteMany({ where: { monitorId: params.id } });
+    await prisma.monitor.delete({ where: { id: params.id } });
+
     await startPoller();
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error('Delete error:', err);
-    return NextResponse.json({ error: 'Failed to delete monitor' }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

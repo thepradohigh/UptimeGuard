@@ -1,7 +1,19 @@
 'use client';
 
-import { PauseIcon, Pencil2Icon, PlayIcon, TrashIcon } from '@radix-ui/react-icons';
-import { useEffect, useState } from 'react';
+import {
+  AlertTriangle,
+  Clock,
+  ExternalLink,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
 
 interface Monitor {
   id: string;
@@ -9,355 +21,533 @@ interface Monitor {
   url: string;
   method: string;
   interval: number;
-  status: string;
-  latency: string;
+  status: 'UP' | 'DOWN' | 'PAUSED';
+  createdAt: string;
 }
 
 export default function MonitorsPage() {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Состояния модалки добавления/редактирования
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-
-  // Поля формы
+  // Create Modal
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [method, setMethod] = useState('GET');
-  const [interval, setIntervalVal] = useState('30');
-  const [submitting, setSubmitting] = useState(false);
+  const [interval, setIntervalVal] = useState(60);
+  const [creating, setCreating] = useState(false);
 
-  // Состояние модалки удаления
-  const [monitorToDelete, setMonitorToDelete] = useState<Monitor | null>(null);
+  // Edit Modal
+  const [editingMonitor, setEditingMonitor] = useState<Monitor | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
-  const fetchMonitors = async () => {
+  // Delete Modal
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const fetchMonitors = useCallback(async (showRefreshing = false) => {
+    if (showRefreshing) setRefreshing(true);
     try {
       const res = await fetch('/api/monitors');
       if (res.ok) {
         const data = await res.json();
-        setMonitors(data);
+        setMonitors(Array.isArray(data) ? data : []);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error('Ошибка загрузки мониторов', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchMonitors();
-    const timer = setInterval(fetchMonitors, 5000);
+    const timer = setInterval(() => fetchMonitors(), 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [fetchMonitors]);
 
-  const handleOpenCreate = () => {
-    setEditingId(null);
-    setName('');
-    setUrl('');
-    setMethod('GET');
-    setIntervalVal('30');
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEdit = (monitor: Monitor) => {
-    setEditingId(monitor.id);
-    setName(monitor.name);
-    setUrl(monitor.url);
-    setMethod(monitor.method);
-    setIntervalVal(monitor.interval.toString());
-    setIsModalOpen(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !url) return;
-
-    setSubmitting(true);
+    setCreating(true);
     try {
-      const urlPath = editingId ? `/api/monitors/${editingId}` : '/api/monitors';
-      const fetchMethod = editingId ? 'PATCH' : 'POST';
-
-      const res = await fetch(urlPath, {
-        method: fetchMethod,
+      const res = await fetch('/api/monitors', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, url, method, interval: Number(interval) }),
+        body: JSON.stringify({ name, url, method, interval }),
       });
 
       if (res.ok) {
-        setIsModalOpen(false);
+        setIsCreateOpen(false);
+        setName('');
+        setUrl('');
+        setMethod('GET');
+        setIntervalVal(60);
         fetchMonitors();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Ошибка создания монитора');
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      alert('Не удалось создать монитор');
     } finally {
-      setSubmitting(false);
+      setCreating(false);
     }
   };
 
-  const handleTogglePause = async (id: string) => {
+  const handleToggle = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     try {
       const res = await fetch(`/api/monitors/${id}/toggle`, { method: 'POST' });
       if (res.ok) {
         fetchMonitors();
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error('Ошибка тогла', err);
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMonitor) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/monitors/${editingMonitor.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editingMonitor.name,
+          url: editingMonitor.url,
+          method: editingMonitor.method,
+          interval: editingMonitor.interval,
+        }),
+      });
+
+      if (res.ok) {
+        setEditingMonitor(null);
+        fetchMonitors();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Ошибка сохранения');
+      }
+    } catch (err) {
+      alert('Не удалось сохранить изменения');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!monitorToDelete) return;
-    setSubmitting(true);
+    if (!deletingId) return;
+    setDeleting(true);
     try {
-      const res = await fetch(`/api/monitors/${monitorToDelete.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/monitors/${deletingId}`, { method: 'DELETE' });
       if (res.ok) {
-        setMonitorToDelete(null);
+        setDeletingId(null);
         fetchMonitors();
+      } else {
+        alert('Ошибка удаления');
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      alert('Не удалось удалить монитор');
     } finally {
-      setSubmitting(false);
+      setDeleting(false);
     }
   };
 
+  const filteredMonitors = monitors.filter(
+    (m) =>
+      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.url.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
   return (
-    <div className="space-y-10">
-      <div className="flex items-end justify-between border-b border-white/5 pb-6">
+    <div className="space-y-6 pb-12">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-serif-display text-4xl text-white tracking-tight">Monitors</h1>
-          <p className="text-zinc-400 text-[14px] mt-2">
-            Manage your endpoints and polling intervals.
+          <h1 className="text-2xl font-bold tracking-tight text-white">Управление мониторами</h1>
+          <p className="text-xs text-zinc-400 font-mono mt-1">
+            Отслеживание работоспособности вашим HTTP/HTTPS эндпоинтов
           </p>
         </div>
-        <button
-          onClick={handleOpenCreate}
-          className="h-9 inline-flex items-center justify-center px-4 rounded-md bg-white text-black text-[13px] font-medium hover:bg-zinc-200 transition-colors"
-        >
-          Add Monitor
-        </button>
-      </div>
 
-      {/* Monitors Table */}
-      <div className="border border-white/10 rounded-xl overflow-hidden bg-[#0A0A0A]">
-        <div className="divide-y divide-white/5">
-          <div className="flex items-center px-6 py-3 bg-white/[0.02] text-[11px] font-mono uppercase tracking-wider text-zinc-500">
-            <div className="flex-1">Target</div>
-            <div className="w-24">Type</div>
-            <div className="w-24">Interval</div>
-            <div className="w-24">Status</div>
-            <div className="w-20 text-right">Latency</div>
-            <div className="w-24 text-right">Actions</div>
-          </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => fetchMonitors(true)}
+            disabled={refreshing}
+            className="p-2.5 rounded-xl border border-white/10 bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+            title="Обновить"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-[#D4FF4F]' : ''}`} />
+          </button>
 
-          {loading ? (
-            <div className="p-8 text-center text-zinc-500 text-xs font-mono">
-              Loading targets...
-            </div>
-          ) : monitors.length === 0 ? (
-            <div className="p-8 text-center text-zinc-500 text-xs font-mono">
-              No monitors configured. Click "Add Monitor" to deploy one.
-            </div>
-          ) : (
-            monitors.map((m) => (
-              <div
-                key={m.id}
-                className="flex items-center px-6 py-4 hover:bg-white/[0.02] transition-colors group"
-              >
-                <div className="flex-1 flex items-center gap-3">
-                  <div
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      m.status === 'UP'
-                        ? 'bg-zinc-300'
-                        : m.status === 'PAUSED'
-                          ? 'bg-zinc-600'
-                          : 'bg-red-500'
-                    }`}
-                  />
-                  <div className="min-w-0 pr-4">
-                    <div className="font-medium text-[14px] text-white truncate">{m.name}</div>
-                    <div className="text-[12px] text-zinc-500 font-mono mt-0.5 truncate">
-                      {m.url}
-                    </div>
-                  </div>
-                </div>
-                <div className="w-24 text-[12px] font-mono text-zinc-400">{m.method}</div>
-                <div className="w-24 text-[12px] font-mono text-zinc-400">{m.interval}s</div>
-                <div className="w-24">
-                  <span
-                    className={`px-2 py-1 rounded text-[10px] font-mono font-medium uppercase ${
-                      m.status === 'UP'
-                        ? 'bg-zinc-800 text-zinc-300'
-                        : m.status === 'PAUSED'
-                          ? 'bg-zinc-900 text-zinc-500 border border-zinc-800'
-                          : 'bg-red-500/10 text-red-500'
-                    }`}
-                  >
-                    {m.status}
-                  </span>
-                </div>
-                <div
-                  className={`w-20 text-right text-[13px] font-mono ${m.status === 'UP' ? 'text-white' : 'text-zinc-500'}`}
-                >
-                  {m.status === 'PAUSED' ? '--' : m.latency}
-                </div>
-                <div className="w-24 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleTogglePause(m.id)}
-                    title={m.status === 'PAUSED' ? 'Resume check' : 'Pause check'}
-                    className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/10 rounded transition-colors"
-                  >
-                    {m.status === 'PAUSED' ? (
-                      <PlayIcon className="w-4 h-4 text-[#D4FF4F]" />
-                    ) : (
-                      <PauseIcon className="w-4 h-4" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleOpenEdit(m)}
-                    title="Edit monitor"
-                    className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/10 rounded transition-colors"
-                  >
-                    <Pencil2Icon className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setMonitorToDelete(m)}
-                    title="Delete monitor"
-                    className="p-1.5 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
+          <button
+            onClick={() => setIsCreateOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition shadow-lg"
+          >
+            <Plus className="w-4 h-4" /> Добавить монитор
+          </button>
         </div>
       </div>
 
-      {/* CREATE/EDIT MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <form
-            onSubmit={handleSubmit}
-            className="bg-[#0A0A0A] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl"
-          >
-            <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-              <h3 className="text-[16px] font-medium text-white">
-                {editingId ? 'Edit Monitor' : 'Create New Monitor'}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="text-zinc-500 hover:text-white"
+      {/* Search & Stats Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-zinc-900/40 border border-white/10 p-4 rounded-2xl">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-3" />
+          <input
+            type="text"
+            placeholder="Поиск по названию или URL..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-zinc-950 border border-white/10 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#D4FF4F]"
+          />
+        </div>
+
+        <div className="flex items-center gap-4 text-xs font-mono text-zinc-400 w-full sm:w-auto justify-end">
+          <span>
+            Всего: <strong className="text-white">{monitors.length}</strong>
+          </span>
+          <span>•</span>
+          <span>
+            Активные:{' '}
+            <strong className="text-[#D4FF4F]">
+              {monitors.filter((m) => m.status === 'UP').length}
+            </strong>
+          </span>
+          <span>•</span>
+          <span>
+            Сбои:{' '}
+            <strong className="text-red-400">
+              {monitors.filter((m) => m.status === 'DOWN').length}
+            </strong>
+          </span>
+        </div>
+      </div>
+
+      {/* Monitors List */}
+      {loading && monitors.length === 0 ? (
+        <div className="flex items-center justify-center py-20 text-sm font-mono text-zinc-400">
+          <RefreshCw className="w-6 h-6 text-[#D4FF4F] animate-spin mr-3" />
+          Загрузка списка мониторов...
+        </div>
+      ) : filteredMonitors.length === 0 ? (
+        <div className="p-12 text-center bg-zinc-900/40 border border-dashed border-white/10 rounded-2xl space-y-3">
+          <Clock className="w-10 h-10 text-zinc-600 mx-auto" />
+          <h3 className="text-base font-semibold text-white">Мониторы не найдены</h3>
+          <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+            {searchQuery
+              ? 'По вашему запросу ничего не найдено.'
+              : 'Добавьте ваш первый сервис для отслеживания доступности.'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3">
+          {filteredMonitors.map((m) => {
+            if (!m || !m.id) return null;
+
+            return (
+              <div
+                key={m.id}
+                className="group relative bg-zinc-900/40 hover:bg-zinc-900/80 border border-white/10 hover:border-white/20 rounded-2xl p-5 transition-all duration-200"
               >
-                ✕
-              </button>
-            </div>
-            <div className="p-6 space-y-5">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium border ${
+                          m.status === 'UP'
+                            ? 'bg-[#D4FF4F]/10 border-[#D4FF4F]/30 text-[#D4FF4F]'
+                            : m.status === 'DOWN'
+                              ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                              : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            m.status === 'UP'
+                              ? 'bg-[#D4FF4F] animate-pulse'
+                              : m.status === 'DOWN'
+                                ? 'bg-red-500 animate-pulse'
+                                : 'bg-zinc-500'
+                          }`}
+                        />
+                        {m.status}
+                      </span>
+
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-300 border border-white/5 uppercase">
+                        {m.method}
+                      </span>
+
+                      <span className="text-xs font-mono text-zinc-500">
+                        интервал {m.interval}s
+                      </span>
+                    </div>
+
+                    <Link
+                      href={`/monitors/${m.id}`}
+                      prefetch={false}
+                      className="inline-block text-base font-bold text-white hover:text-[#D4FF4F] transition"
+                    >
+                      {m.name}
+                    </Link>
+
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={m.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-mono text-zinc-400 hover:text-white transition inline-flex items-center gap-1"
+                      >
+                        {m.url}
+                        <ExternalLink className="w-3 h-3 opacity-60" />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Right Actions */}
+                  <div className="flex items-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-white/5 justify-between md:justify-end">
+                    <Link
+                      href={`/monitors/${m.id}`}
+                      prefetch={false}
+                      className="px-3 py-1.5 rounded-xl border border-white/10 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
+                    >
+                      Детали →
+                    </Link>
+
+                    <button
+                      onClick={(e) => handleToggle(e, m.id)}
+                      className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+                      title={m.status === 'PAUSED' ? 'Возобновить' : 'Поставить на паузу'}
+                    >
+                      {m.status === 'PAUSED' ? (
+                        <Play className="w-4 h-4 text-[#D4FF4F] fill-current" />
+                      ) : (
+                        <Pause className="w-4 h-4" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setEditingMonitor(m);
+                      }}
+                      className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+                      title="Редактировать"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setDeletingId(m.id);
+                      }}
+                      className="p-2 rounded-xl border border-red-500/20 text-red-400 hover:bg-red-500/10 transition"
+                      title="Удалить"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create Modal */}
+      {isCreateOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-lg p-6 space-y-6 shadow-2xl">
+            <h2 className="text-lg font-bold text-white">Новый монитор</h2>
+
+            <form onSubmit={handleCreate} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 block">
-                  Monitor Name
-                </label>
+                <label className="text-xs font-mono text-zinc-400">Название сервиса</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Production API"
+                  placeholder="My Production API"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full h-10 bg-black border border-white/10 rounded-lg px-4 text-[13px] text-white focus:border-white/30 outline-none"
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#D4FF4F]"
                 />
               </div>
+
               <div className="space-y-1.5">
-                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 block">
-                  Endpoint URL
-                </label>
+                <label className="text-xs font-mono text-zinc-400">URL эндпоинта</label>
                 <input
                   type="url"
                   required
                   placeholder="https://api.example.com/health"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  className="w-full h-10 bg-black border border-white/10 rounded-lg px-4 text-[13px] font-mono text-white focus:border-white/30 outline-none"
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#D4FF4F]"
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 block">
-                    Check Interval
-                  </label>
-                  <select
-                    value={interval}
-                    onChange={(e) => setIntervalVal(e.target.value)}
-                    className="w-full h-10 bg-black border border-white/10 rounded-lg px-4 text-[13px] text-white focus:border-white/30 outline-none"
-                  >
-                    <option value="10">10 seconds</option>
-                    <option value="30">30 seconds</option>
-                    <option value="60">1 minute</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 block">
-                    Method
-                  </label>
+                  <label className="text-xs font-mono text-zinc-400">HTTP Метод</label>
                   <select
                     value={method}
                     onChange={(e) => setMethod(e.target.value)}
-                    className="w-full h-10 bg-black border border-white/10 rounded-lg px-4 text-[13px] text-white focus:border-white/30 outline-none"
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#D4FF4F]"
                   >
                     <option value="GET">GET</option>
                     <option value="POST">POST</option>
                     <option value="HEAD">HEAD</option>
                   </select>
                 </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono text-zinc-400">Интервал проверки</label>
+                  <select
+                    value={interval}
+                    onChange={(e) => setIntervalVal(Number(e.target.value))}
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#D4FF4F]"
+                  >
+                    <option value={10}>10 секунд</option>
+                    <option value={30}>30 секунд</option>
+                    <option value={60}>60 секунд (1 мин)</option>
+                    <option value={300}>300 секунд (5 мин)</option>
+                  </select>
+                </div>
               </div>
-            </div>
-            <div className="px-6 py-4 border-t border-white/5 bg-white/[0.01] flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 bg-white text-black rounded-md text-[13px] font-medium hover:bg-zinc-200"
-              >
-                {submitting ? 'Saving...' : editingId ? 'Save Changes' : 'Deploy Monitor'}
-              </button>
-            </div>
-          </form>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-white/10 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="px-5 py-2 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition disabled:opacity-50"
+                >
+                  {creating ? 'Создание...' : 'Создать монитор'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
-      {/* DELETE CONFIRMATION MODAL */}
-      {monitorToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-            <div className="p-6">
-              <h3 className="text-[18px] font-medium text-white mb-2">Delete Monitor</h3>
-              <p className="text-[14px] text-zinc-400">
-                Are you sure you want to delete{' '}
-                <strong className="text-white">{monitorToDelete.name}</strong>? This action will
-                remove all associated pings and incident logs.
+      {/* Edit Modal */}
+      {editingMonitor && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-lg p-6 space-y-6 shadow-2xl">
+            <h2 className="text-lg font-bold text-white">Редактировать монитор</h2>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono text-zinc-400">Название сервиса</label>
+                <input
+                  type="text"
+                  required
+                  value={editingMonitor.name}
+                  onChange={(e) => setEditingMonitor({ ...editingMonitor, name: e.target.value })}
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#D4FF4F]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono text-zinc-400">URL эндпоинта</label>
+                <input
+                  type="url"
+                  required
+                  value={editingMonitor.url}
+                  onChange={(e) => setEditingMonitor({ ...editingMonitor, url: e.target.value })}
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#D4FF4F]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono text-zinc-400">HTTP Метод</label>
+                  <select
+                    value={editingMonitor.method}
+                    onChange={(e) =>
+                      setEditingMonitor({ ...editingMonitor, method: e.target.value })
+                    }
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#D4FF4F]"
+                  >
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="HEAD">HEAD</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono text-zinc-400">Интервал проверки</label>
+                  <select
+                    value={editingMonitor.interval}
+                    onChange={(e) =>
+                      setEditingMonitor({ ...editingMonitor, interval: Number(e.target.value) })
+                    }
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#D4FF4F]"
+                  >
+                    <option value={10}>10 секунд</option>
+                    <option value={30}>30 секунд</option>
+                    <option value={60}>60 секунд (1 мин)</option>
+                    <option value={300}>300 секунд (5 мин)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setEditingMonitor(null)}
+                  className="px-4 py-2 rounded-xl border border-white/10 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="px-5 py-2 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition disabled:opacity-50"
+                >
+                  {savingEdit ? 'Сохранение...' : 'Сохранить'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingId && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-red-500/20 rounded-2xl w-full max-w-md p-6 space-y-6 shadow-2xl text-center">
+            <AlertTriangle className="w-10 h-10 text-red-500 mx-auto" />
+            <div className="space-y-2">
+              <h2 className="text-lg font-bold text-white">Удалить этот монитор?</h2>
+              <p className="text-xs text-zinc-400">
+                Все собранные пинги и история инцидентов будут безвозвратно удалены.
               </p>
             </div>
-            <div className="px-6 py-4 border-t border-white/5 bg-white/[0.01] flex justify-end gap-3">
+
+            <div className="flex items-center justify-center gap-3 pt-2">
               <button
-                type="button"
-                onClick={() => setMonitorToDelete(null)}
-                className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white"
+                onClick={() => setDeletingId(null)}
+                className="px-4 py-2 rounded-xl border border-white/10 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition"
               >
-                Cancel
+                Отмена
               </button>
               <button
                 onClick={handleDelete}
-                disabled={submitting}
-                className="px-4 py-2 bg-red-500 text-white rounded-md text-[13px] font-medium hover:bg-red-600"
+                disabled={deleting}
+                className="px-5 py-2 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition disabled:opacity-50"
               >
-                {submitting ? 'Deleting...' : 'Delete Monitor'}
+                {deleting ? 'Удаление...' : 'Удалить'}
               </button>
             </div>
           </div>

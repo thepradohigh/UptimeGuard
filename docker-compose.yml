@@ -1,20 +1,26 @@
-version: "3.9"
+﻿version: "3.8"
+
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: uptimeguard
-      POSTGRES_USER: uptimeguard
-      POSTGRES_PASSWORD: uptimeguard
-    ports:
-      - "5433:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U uptimeguard"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+  uptimeguard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uptimeguard
     restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "file:/app/prisma/dev.db"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID}"
+      SMTP_HOST: "${SMTP_HOST}"
+      SMTP_PORT: "${SMTP_PORT}"
+      SMTP_USER: "${SMTP_USER}"
+      SMTP_PASS: "${SMTP_PASS}"
+      SMTP_FROM: "${SMTP_FROM}"
+      NOTIFICATION_EMAIL: "${NOTIFICATION_EMAIL}"
+    volumes:
+      - uptimeguard_data:/app/prisma
+
 volumes:
-  pgdata:
+  uptimeguard_data:
