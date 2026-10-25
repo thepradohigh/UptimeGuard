@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 

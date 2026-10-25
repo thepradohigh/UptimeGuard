@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "uptimeguard",
   "version": "1.0.0",
   "description": "Self-hosted uptime monitoring",
@@ -67,5 +67,8 @@
     "ts-node": "^10.9.2",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.15"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   }
 }

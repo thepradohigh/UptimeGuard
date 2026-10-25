@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React from "react";
 import { usePathname } from "next/navigation";
 import { Menu, Moon, Sun } from "lucide-react";

@@ -1,4 +1,4 @@
-﻿import cron from "node-cron";
+import cron from "node-cron";
 import { runChecks } from "./checker";
 import prisma from "./prisma";
 

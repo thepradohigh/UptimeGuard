@@ -1,4 +1,4 @@
-﻿import axios, { AxiosError } from "axios";
+import axios, { AxiosError } from "axios";
 import { MonitorStatus, Prisma } from "@prisma/client";
 import prisma from "./prisma";
 import { notifyDown, notifyUp } from "./notifications";

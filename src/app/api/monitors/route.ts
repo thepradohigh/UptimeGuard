@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { authenticateRequest, unauthorized } from "@/lib/auth";
 import { monitorSchema } from "@/lib/validators";

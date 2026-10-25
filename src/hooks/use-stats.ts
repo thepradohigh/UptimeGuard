@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect, useCallback } from "react";
 import { MonitorStats, Check, Incident, ApiResponse } from "@/types";
 import { useAuth } from "@/components/providers/auth-provider";

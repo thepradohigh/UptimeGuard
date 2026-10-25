@@ -1,4 +1,4 @@
-﻿import { sendTelegramMessage, formatDownAlert, formatUpAlert } from "./telegram";
+import { sendTelegramMessage, formatDownAlert, formatUpAlert } from "./telegram";
 import { sendEmail, formatDownEmailHtml, formatUpEmailHtml } from "./email";
 import prisma from "../prisma";
 import { formatDuration } from "../utils";

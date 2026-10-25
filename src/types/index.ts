@@ -1,4 +1,4 @@
-﻿export type MonitorStatus = "UP" | "DOWN" | "TIMEOUT" | "UNKNOWN";
+export type MonitorStatus = "UP" | "DOWN" | "TIMEOUT" | "UNKNOWN";
 
 export interface User {
   id: string;

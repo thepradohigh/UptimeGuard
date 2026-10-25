@@ -1,4 +1,4 @@
-﻿import { createServer } from "http";
+import { createServer } from "http";
 import next from "next";
 import { initWebSocket } from "./src/lib/websocket";
 import { startCronJobs } from "./src/lib/cron";

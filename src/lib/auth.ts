@@ -1,4 +1,4 @@
-﻿import { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 import { verifyAccessToken, JwtPayload } from "./jwt";
 import prisma from "./prisma";
 

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React from "react";
 import { Incident } from "@/types";
 import { formatDuration, cn } from "@/lib/utils";

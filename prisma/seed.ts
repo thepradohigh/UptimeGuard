@@ -1,4 +1,4 @@
-﻿import { PrismaClient, HttpMethod, MonitorStatus } from "@prisma/client";
+import { PrismaClient, HttpMethod, MonitorStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
