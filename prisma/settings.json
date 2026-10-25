@@ -1,0 +1,10 @@
+{
+  "telegramBotToken": "8978965543:AAHIrDLdq8y5OjdJUndXXe-FUf0fXi6yyjI",
+  "telegramChatId": "7377241551",
+  "smtpHost": "smtp.gmail.com",
+  "smtpPort": "465",
+  "smtpUser": "uptimeguardadmin@gmail.com",
+  "smtpPass": "wxxi aexz zqfp hvbj",
+  "smtpFrom": "UptimeGuard <uptimeguardadmin@gmail.com>",
+  "notificationEmail": "thepradohigh@gmail.com"
+}

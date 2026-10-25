@@ -1,39 +1,38 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-interface AuthContextType {
-  user: any | null;
-  token: string | null;
-  login: (token: string, user: any) => void;
-  logout: () => void;
-  getAccessToken: () => string | null;
-  isLoading: boolean;
+interface User {
+  id: string;
+  email: string;
+  name?: string;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  token: null,
-  login: () => {},
-  logout: () => {},
-  getAccessToken: () => null,
-  isLoading: true,
-});
+interface AuthContextType {
+  user: User | null;
+  token: string | null;
+  isLoading: boolean;
+  login: (token: string, user: User) => void;
+  logout: () => void;
+  getAccessToken: () => string | null;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
     try {
-      const savedAuth = localStorage.getItem('uptimeguard_auth');
-      if (savedAuth) {
-        const parsed = JSON.parse(savedAuth);
-        setToken(parsed.token || null);
-        setUser(parsed.user || null);
+      const stored = localStorage.getItem('uptimeguard_auth');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.token && parsed.user) {
+          setToken(parsed.token);
+          setUser(parsed.user);
+        }
       }
     } catch (e) {
       console.error('Failed to load auth state', e);
@@ -42,28 +41,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = (newToken: string, newUser: any) => {
+  const login = (newToken: string, newUser: User) => {
     setToken(newToken);
     setUser(newUser);
     localStorage.setItem('uptimeguard_auth', JSON.stringify({ token: newToken, user: newUser }));
   };
 
   const logout = () => {
-    setToken(null);
+    try {
+      localStorage.removeItem('uptimeguard_auth');
+    } catch (e) {
+      console.error('Logout error', e);
+    }
     setUser(null);
-    localStorage.removeItem('uptimeguard_auth');
-    router.push('/login');
+    setToken(null);
+    window.location.href = '/login';
   };
 
   const getAccessToken = () => token;
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, getAccessToken, isLoading }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, getAccessToken }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }

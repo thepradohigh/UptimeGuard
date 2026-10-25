@@ -1,173 +1,412 @@
 'use client';
 
-import { useState } from 'react';
+import { CheckCircle2, Loader2, Mail, Save, Send, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export default function SettingsPage() {
-  const [chatId, setChatId] = useState('');
-  const [email, setEmail] = useState('');
-
-  const [tgLoading, setTgLoading] = useState(false);
-  const [tgStatus, setTgStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(
-    null,
-  );
-
-  const [emailLoading, setEmailLoading] = useState(false);
-  const [emailStatus, setEmailStatus] = useState<{
+  // Telegram State
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [savingTg, setSavingTg] = useState(false);
+  const [testingTg, setTestingTg] = useState(false);
+  const [tgFeedback, setTgFeedback] = useState<{
     type: 'success' | 'error';
-    text: string;
+    message: string;
   } | null>(null);
 
-  const handleTestTelegram = async () => {
-    setTgLoading(true);
-    setTgStatus(null);
+  // Email State
+  const [smtpHost, setSmtpHost] = useState('smtp.gmail.com');
+  const [smtpPort, setSmtpPort] = useState('465');
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPass, setSmtpPass] = useState('');
+  const [notificationEmail, setNotificationEmail] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [emailFeedback, setEmailFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
+  useEffect(() => {
+    // Загружаем сохраненные настройки
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.telegramBotToken) setTelegramBotToken(data.telegramBotToken);
+        if (data.telegramChatId) setTelegramChatId(data.telegramChatId);
+        if (data.smtpHost) setSmtpHost(data.smtpHost);
+        if (data.smtpPort) setSmtpPort(data.smtpPort);
+        if (data.smtpUser) setSmtpUser(data.smtpUser);
+        if (data.smtpPass) setSmtpPass(data.smtpPass);
+        if (data.notificationEmail) setNotificationEmail(data.notificationEmail);
+      })
+      .catch((err) => console.error('Ошибка загрузки настроек', err));
+  }, []);
+
+  const handleSaveTelegram = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingTg(true);
+    setTgFeedback(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegramBotToken,
+          telegramChatId,
+        }),
+      });
+
+      if (res.ok) {
+        setTgFeedback({
+          type: 'success',
+          message: 'Настройки Telegram успешно сохранены!',
+        });
+      } else {
+        setTgFeedback({
+          type: 'error',
+          message: 'Ошибка при сохранении настроек Telegram',
+        });
+      }
+    } catch (err) {
+      setTgFeedback({
+        type: 'error',
+        message: 'Сетевая ошибка при сохранении',
+      });
+    } finally {
+      setSavingTg(false);
+    }
+  };
+
+  const handleTestTelegram = async () => {
+    setTestingTg(true);
+    setTgFeedback(null);
     try {
       const res = await fetch('/api/notifications/test-telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: chatId.trim() || undefined }),
+        body: JSON.stringify({ chatId: telegramChatId }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setTgStatus({
+        setTgFeedback({
           type: 'success',
-          text: data.message || 'Тестовый алерт отправлен в Telegram!',
+          message: 'Тестовое сообщение отправлено в Telegram!',
         });
       } else {
-        setTgStatus({ type: 'error', text: data.error || 'Ошибка при отправке сообщения' });
+        setTgFeedback({
+          type: 'error',
+          message: data.error || 'Ошибка отправки в Telegram',
+        });
+      }
+    } catch (err: any) {
+      setTgFeedback({
+        type: 'error',
+        message: 'Сетевая ошибка при отправке',
+      });
+    } finally {
+      setTestingTg(false);
+    }
+  };
+
+  const handleSaveEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingEmail(true);
+    setEmailFeedback(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          smtpHost,
+          smtpPort,
+          smtpUser,
+          smtpPass,
+          notificationEmail,
+          smtpFrom: `UptimeGuard <${smtpUser}>`,
+        }),
+      });
+
+      if (res.ok) {
+        setEmailFeedback({
+          type: 'success',
+          message: 'Настройки Email успешно сохранены!',
+        });
+      } else {
+        setEmailFeedback({
+          type: 'error',
+          message: 'Ошибка при сохранении настроек Email',
+        });
       }
     } catch (err) {
-      setTgStatus({ type: 'error', text: 'Сетевая ошибка при вызове API' });
+      setEmailFeedback({
+        type: 'error',
+        message: 'Сетевая ошибка при сохранении',
+      });
     } finally {
-      setTgLoading(false);
+      setSavingEmail(false);
     }
   };
 
   const handleTestEmail = async () => {
-    setEmailLoading(true);
-    setEmailStatus(null);
-
+    setTestingEmail(true);
+    setEmailFeedback(null);
     try {
       const res = await fetch('/api/notifications/test-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() || undefined }),
+        body: JSON.stringify({ email: notificationEmail }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setEmailStatus({ type: 'success', text: data.message || 'Тестовое письмо отправлено!' });
+        setEmailFeedback({
+          type: 'success',
+          message: 'Тестовое письмо успешно отправлено!',
+        });
       } else {
-        setEmailStatus({ type: 'error', text: data.error || 'Ошибка при отправке письма' });
+        setEmailFeedback({
+          type: 'error',
+          message: data.error || 'Ошибка отправки Email',
+        });
       }
-    } catch (err) {
-      setEmailStatus({ type: 'error', text: 'Сетевая ошибка при вызове API' });
+    } catch (err: any) {
+      setEmailFeedback({
+        type: 'error',
+        message: 'Сетевая ошибка при отправке письма',
+      });
     } finally {
-      setEmailLoading(false);
+      setTestingEmail(false);
     }
   };
 
   return (
-    <div className="space-y-10 max-w-4xl">
-      {/* Page Header */}
-      <div className="border-b border-white/5 pb-6">
-        <h1 className="font-serif-display text-4xl text-white tracking-tight">Settings</h1>
-        <p className="text-zinc-400 text-[14px] mt-2">
-          Manage notification channels and system preferences.
+    <div className="space-y-8 pb-16 max-w-4xl">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-white">Каналы оповещений</h1>
+        <p className="text-xs text-zinc-400 font-mono mt-1">
+          Управление ботом Telegram и SMTP-сервером для алертов о сбоях
         </p>
       </div>
 
       {/* Telegram Section */}
-      <div className="border border-white/10 rounded-xl bg-white/[0.02] p-6 sm:p-8 space-y-6">
-        <div>
-          <h2 className="text-[16px] font-semibold text-white">Telegram Notifications</h2>
-          <p className="text-[13px] text-zinc-400 mt-1">
-            Receive instant downtime notifications directly in your Telegram chat.
-          </p>
+      <div className="p-6 rounded-2xl bg-zinc-900/40 border border-white/10 space-y-6">
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400">
+              <Send className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-white">Telegram Bot</h2>
+              <p className="text-xs text-zinc-400 font-mono">
+                Мгновенные сообщения при падении или восстановлении сервиса
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            Активно
+          </span>
         </div>
 
-        <div className="space-y-4 pt-2">
-          <div>
-            <label className="block text-[12px] font-mono uppercase text-zinc-400 mb-2">
-              Telegram Chat ID (Опционально, если передан в .env)
-            </label>
-            <input
-              type="text"
-              placeholder="Например: 7377241551"
-              value={chatId}
-              onChange={(e) => setChatId(e.target.value)}
-              className="w-full h-10 px-4 rounded-lg bg-black border border-white/10 text-white text-[13px] font-mono focus:outline-none focus:border-white/30 transition-colors"
-            />
+        <form onSubmit={handleSaveTelegram} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-mono text-zinc-400">Bot Token</label>
+              <input
+                type="text"
+                placeholder="8978965543:AAHIrDLdq..."
+                value={telegramBotToken}
+                onChange={(e) => setTelegramBotToken(e.target.value)}
+                className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#D4FF4F]"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-mono text-zinc-400">Telegram Chat ID</label>
+              <input
+                type="text"
+                placeholder="7377241551"
+                value={telegramChatId}
+                onChange={(e) => setTelegramChatId(e.target.value)}
+                className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#D4FF4F]"
+              />
+            </div>
           </div>
 
-          {tgStatus && (
+          {tgFeedback && (
             <div
-              className={`p-4 rounded-lg border text-[13px] font-mono ${tgStatus.type === 'success' ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300' : 'bg-red-950/30 border-red-500/30 text-red-300'}`}
+              className={`p-3 rounded-xl border text-xs font-mono flex items-center gap-2 ${
+                tgFeedback.type === 'success'
+                  ? 'bg-[#D4FF4F]/10 border-[#D4FF4F]/30 text-[#D4FF4F]'
+                  : 'bg-red-500/10 border-red-500/30 text-red-400'
+              }`}
             >
-              {tgStatus.type === 'success' ? '✓ ' : '✕ '}
-              {tgStatus.text}
+              {tgFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              ) : (
+                <XCircle className="w-4 h-4 shrink-0" />
+              )}
+              {tgFeedback.message}
             </div>
           )}
 
-          <button
-            onClick={handleTestTelegram}
-            disabled={tgLoading}
-            className="h-10 px-6 rounded-lg bg-white text-black text-[13px] font-medium hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center gap-2"
-          >
-            {tgLoading ? (
-              <div className="w-3.5 h-3.5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-            ) : null}
-            <span>Проверить Telegram алерт</span>
-          </button>
-        </div>
+          <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleTestTelegram}
+              disabled={testingTg}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-zinc-800 text-white text-xs font-semibold hover:bg-zinc-700 transition disabled:opacity-50"
+            >
+              {testingTg ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5 text-sky-400" />
+              )}
+              Проверить алерт
+            </button>
+
+            <button
+              type="submit"
+              disabled={savingTg}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition disabled:opacity-50 shadow-lg"
+            >
+              {savingTg ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
+              Сохранить Telegram
+            </button>
+          </div>
+        </form>
       </div>
 
-      {/* Email / SMTP Section */}
-      <div className="border border-white/10 rounded-xl bg-white/[0.02] p-6 sm:p-8 space-y-6">
-        <div>
-          <h2 className="text-[16px] font-semibold text-white">Email (SMTP) Notifications</h2>
-          <p className="text-[13px] text-zinc-400 mt-1">
-            Receive dark-mode HTML alert emails when a target service goes down.
-          </p>
+      {/* Email SMTP Section */}
+      <div className="p-6 rounded-2xl bg-zinc-900/40 border border-white/10 space-y-6">
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <Mail className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-white">Email (SMTP Server)</h2>
+              <p className="text-xs text-zinc-400 font-mono">
+                Отправка писем через Gmail App Password или свой SMTP
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            Активно
+          </span>
         </div>
 
-        <div className="space-y-4 pt-2">
-          <div>
-            <label className="block text-[12px] font-mono uppercase text-zinc-400 mb-2">
-              Notification Email Recipient
+        <form onSubmit={handleSaveEmail} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-mono text-zinc-400">SMTP Host</label>
+              <input
+                type="text"
+                value={smtpHost}
+                onChange={(e) => setSmtpHost(e.target.value)}
+                className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#D4FF4F]"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-mono text-zinc-400">SMTP Port</label>
+              <input
+                type="text"
+                value={smtpPort}
+                onChange={(e) => setSmtpPort(e.target.value)}
+                className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#D4FF4F]"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-mono text-zinc-400">SMTP User / Email</label>
+              <input
+                type="email"
+                placeholder="uptimeguardadmin@gmail.com"
+                value={smtpUser}
+                onChange={(e) => setSmtpUser(e.target.value)}
+                className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#D4FF4F]"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-mono text-zinc-400">SMTP App Password</label>
+              <input
+                type="password"
+                placeholder="•••• •••• •••• ••••"
+                value={smtpPass}
+                onChange={(e) => setSmtpPass(e.target.value)}
+                className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#D4FF4F]"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-mono text-zinc-400">
+              Email для получения уведомлений
             </label>
             <input
               type="email"
-              placeholder="Например: admin@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full h-10 px-4 rounded-lg bg-black border border-white/10 text-white text-[13px] font-mono focus:outline-none focus:border-white/30 transition-colors"
+              placeholder="uptimeguardadmin@gmail.com"
+              value={notificationEmail}
+              onChange={(e) => setNotificationEmail(e.target.value)}
+              className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#D4FF4F]"
             />
           </div>
 
-          {emailStatus && (
+          {emailFeedback && (
             <div
-              className={`p-4 rounded-lg border text-[13px] font-mono ${emailStatus.type === 'success' ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300' : 'bg-red-950/30 border-red-500/30 text-red-300'}`}
+              className={`p-3 rounded-xl border text-xs font-mono flex items-center gap-2 ${
+                emailFeedback.type === 'success'
+                  ? 'bg-[#D4FF4F]/10 border-[#D4FF4F]/30 text-[#D4FF4F]'
+                  : 'bg-red-500/10 border-red-500/30 text-red-400'
+              }`}
             >
-              {emailStatus.type === 'success' ? '✓ ' : '✕ '}
-              {emailStatus.text}
+              {emailFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              ) : (
+                <XCircle className="w-4 h-4 shrink-0" />
+              )}
+              {emailFeedback.message}
             </div>
           )}
 
-          <button
-            onClick={handleTestEmail}
-            disabled={emailLoading}
-            className="h-10 px-6 rounded-lg bg-white text-black text-[13px] font-medium hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center gap-2"
-          >
-            {emailLoading ? (
-              <div className="w-3.5 h-3.5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-            ) : null}
-            <span>Проверить Email алерт</span>
-          </button>
-        </div>
+          <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleTestEmail}
+              disabled={testingEmail}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-zinc-800 text-white text-xs font-semibold hover:bg-zinc-700 transition disabled:opacity-50"
+            >
+              {testingEmail ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Mail className="w-3.5 h-3.5 text-amber-400" />
+              )}
+              Проверить алерт
+            </button>
+
+            <button
+              type="submit"
+              disabled={savingEmail}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition disabled:opacity-50 shadow-lg"
+            >
+              {savingEmail ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
+              Сохранить Email
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
