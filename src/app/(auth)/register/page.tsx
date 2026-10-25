@@ -1,67 +1,139 @@
-"use client";
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useAuth } from "@/components/providers/auth-provider";
+'use client';
+
+import { useAuth } from '@/lib/context/auth-context';
+import Link from 'next/link';
+import { useState } from 'react';
+
+function BrandLogo({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M2 12H6.5L9 3L15 21L17.5 12H22"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const { register } = useAuth();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { login } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError("");
-    if (password !== confirmPassword) { setError("Passwords do not match"); setIsLoading(false); return; }
-    if (password.length < 8) { setError("Password must be at least 8 characters"); setIsLoading(false); return; }
+    setLoading(true);
+    setError(null);
+
     try {
-      await register(email, password, name);
-      router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.token) {
+        login(data.token, data.user);
+        window.location.href = '/dashboard';
+      } else {
+        setError(data.error || 'Failed to create workspace');
+      }
+    } catch (e) {
+      setError('Network error');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="animate-in">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Create account</h1>
-        <p className="text-muted-foreground">Start monitoring your services for free</p>
+    <div className="min-h-screen bg-[#0A0A0A] flex flex-col justify-center items-center p-6 selection:bg-white/20">
+      <div className="w-full max-w-[360px]">
+        <div className="flex flex-col items-center mb-10">
+          <Link href="/" className="mb-8 hover:opacity-80 transition-opacity">
+            <BrandLogo className="w-10 h-10 text-white" />
+          </Link>
+          <h1 className="font-serif-display text-4xl text-white tracking-tight mb-2">
+            Create Workspace
+          </h1>
+          <p className="text-zinc-500 text-[14px]">Deploy your self-hosted monitoring instance.</p>
+        </div>
+
+        <form onSubmit={handleRegister} className="space-y-4">
+          {error && (
+            <div className="p-3 bg-red-950/30 border border-red-500/30 text-red-300 text-[12px] font-mono rounded-lg">
+              ✕ {error}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 block">
+              Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              placeholder="Admin"
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="w-full h-11 bg-black border border-white/10 rounded-lg px-4 text-[14px] text-white focus:outline-none focus:border-white/30 transition-colors"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 block">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              placeholder="admin@company.com"
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full h-11 bg-black border border-white/10 rounded-lg px-4 text-[14px] text-white focus:outline-none focus:border-white/30 transition-colors"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 block">
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full h-11 bg-black border border-white/10 rounded-lg px-4 text-[14px] text-white focus:outline-none focus:border-white/30 transition-colors"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full h-11 mt-4 bg-white text-black font-medium text-[14px] rounded-lg hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+            ) : (
+              'Deploy Workspace'
+            )}
+          </button>
+        </form>
+
+        <p className="text-center text-[13px] text-zinc-500 mt-8">
+          Already registered?{' '}
+          <Link href="/login" className="text-white hover:underline">
+            Sign in
+          </Link>
+        </p>
       </div>
-      {error && <div className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 text-sm">{error}</div>}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
-          <Input id="name" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
-          <Input id="password" type="password" placeholder="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="confirmPassword">Confirm Password</Label>
-          <Input id="confirmPassword" type="password" placeholder="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-        </div>
-        <Button type="submit" className="w-full" size="lg" loading={isLoading}>Create Account</Button>
-      </form>
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        Already have an account? <Link href="/login" className="text-primary font-medium hover:underline">Sign in</Link>
-      </p>
     </div>
   );
 }

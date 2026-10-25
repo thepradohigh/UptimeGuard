@@ -1,126 +1,174 @@
-"use client";
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
-import { useAuth } from "@/components/providers/auth-provider";
-import { Save, MessageCircle, Mail, Bell } from "lucide-react";
+'use client';
+
+import { useState } from 'react';
 
 export default function SettingsPage() {
-  const { getAccessToken, user, updateUser } = useAuth();
-  const [form, setForm] = useState({ name: "", telegramChatId: "", emailNotifications: true, notifyCooldown: 5 });
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [chatId, setChatId] = useState('');
+  const [email, setEmail] = useState('');
 
-  useEffect(() => {
-    if (user) {
-      setForm({
-        name: user.name || "",
-        telegramChatId: user.telegramChatId || "",
-        emailNotifications: user.emailNotifications,
-        notifyCooldown: user.notifyCooldown || 5,
-      });
-    }
-  }, [user]);
+  const [tgLoading, setTgLoading] = useState(false);
+  const [tgStatus, setTgStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(
+    null,
+  );
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    setMessage(null);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
+
+  const handleTestTelegram = async () => {
+    setTgLoading(true);
+    setTgStatus(null);
+
     try {
-      const token = getAccessToken();
-      if (!token) throw new Error("Not authenticated");
-      const res = await fetch("/api/user/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          name: form.name,
-          telegramChatId: form.telegramChatId || null,
-          emailNotifications: form.emailNotifications,
-          notifyCooldown: form.notifyCooldown,
-        }),
+      const res = await fetch('/api/notifications/test-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: chatId.trim() || undefined }),
       });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      updateUser(data.data);
-      setMessage({ type: "success", text: "Settings saved successfully!" });
-    } catch (err: any) {
-      setMessage({ type: "error", text: err.message });
+
+      if (res.ok && data.success) {
+        setTgStatus({
+          type: 'success',
+          text: data.message || 'Тестовый алерт отправлен в Telegram!',
+        });
+      } else {
+        setTgStatus({ type: 'error', text: data.error || 'Ошибка при отправке сообщения' });
+      }
+    } catch (err) {
+      setTgStatus({ type: 'error', text: 'Сетевая ошибка при вызове API' });
     } finally {
-      setIsSaving(false);
+      setTgLoading(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    setEmailLoading(true);
+    setEmailStatus(null);
+
+    try {
+      const res = await fetch('/api/notifications/test-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() || undefined }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setEmailStatus({ type: 'success', text: data.message || 'Тестовое письмо отправлено!' });
+      } else {
+        setEmailStatus({ type: 'error', text: data.error || 'Ошибка при отправке письма' });
+      }
+    } catch (err) {
+      setEmailStatus({ type: 'error', text: 'Сетевая ошибка при вызове API' });
+    } finally {
+      setEmailLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6 max-w-2xl animate-in">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground text-sm mt-1">Manage your account and notification preferences</p>
+    <div className="space-y-10 max-w-4xl">
+      {/* Page Header */}
+      <div className="border-b border-white/5 pb-6">
+        <h1 className="font-serif-display text-4xl text-white tracking-tight">Settings</h1>
+        <p className="text-zinc-400 text-[14px] mt-2">
+          Manage notification channels and system preferences.
+        </p>
       </div>
 
-      {message && (
-        <div className={`p-4 rounded-lg text-sm ${message.type === "success" ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800"}`}>
-          {message.text}
+      {/* Telegram Section */}
+      <div className="border border-white/10 rounded-xl bg-white/[0.02] p-6 sm:p-8 space-y-6">
+        <div>
+          <h2 className="text-[16px] font-semibold text-white">Telegram Notifications</h2>
+          <p className="text-[13px] text-zinc-400 mt-1">
+            Receive instant downtime notifications directly in your Telegram chat.
+          </p>
         </div>
-      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2"><Mail className="w-5 h-5" />Profile</CardTitle>
-          <CardDescription>Your account information</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Display Name</Label>
-            <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <div className="space-y-4 pt-2">
+          <div>
+            <label className="block text-[12px] font-mono uppercase text-zinc-400 mb-2">
+              Telegram Chat ID (Опционально, если передан в .env)
+            </label>
+            <input
+              type="text"
+              placeholder="Например: 7377241551"
+              value={chatId}
+              onChange={(e) => setChatId(e.target.value)}
+              className="w-full h-10 px-4 rounded-lg bg-black border border-white/10 text-white text-[13px] font-mono focus:outline-none focus:border-white/30 transition-colors"
+            />
           </div>
-          <div className="space-y-2">
-            <Label>Email</Label>
-            <Input value={user?.email || ""} disabled />
-            <p className="text-xs text-muted-foreground">Email cannot be changed</p>
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2"><Bell className="w-5 h-5" />Notifications</CardTitle>
-          <CardDescription>Configure how you receive alerts</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-sm">Email Notifications</p>
-              <p className="text-xs text-muted-foreground">Receive alerts via email when monitors go down</p>
+          {tgStatus && (
+            <div
+              className={`p-4 rounded-lg border text-[13px] font-mono ${tgStatus.type === 'success' ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300' : 'bg-red-950/30 border-red-500/30 text-red-300'}`}
+            >
+              {tgStatus.type === 'success' ? '✓ ' : '✕ '}
+              {tgStatus.text}
             </div>
-            <Switch checked={form.emailNotifications} onCheckedChange={(c) => setForm({ ...form, emailNotifications: c })} />
-          </div>
-          <Separator />
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-blue-500" />
-              <p className="font-medium text-sm">Telegram Notifications</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="telegramChatId">Telegram Chat ID</Label>
-              <Input id="telegramChatId" placeholder="e.g. 123456789" value={form.telegramChatId} onChange={(e) => setForm({ ...form, telegramChatId: e.target.value })} />
-              <p className="text-xs text-muted-foreground">Send /start to your Telegram bot to get your Chat ID. Leave empty to disable.</p>
-            </div>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <Label htmlFor="cooldown">Alert Cooldown (minutes)</Label>
-            <Input id="cooldown" type="number" min={1} max={60} value={form.notifyCooldown} onChange={(e) => setForm({ ...form, notifyCooldown: parseInt(e.target.value) || 5 })} />
-            <p className="text-xs text-muted-foreground">Minimum time between repeated alerts for the same monitor</p>
-          </div>
-        </CardContent>
-      </Card>
+          )}
 
-      <Button onClick={handleSave} loading={isSaving} className="w-full sm:w-auto">
-        <Save className="w-4 h-4 mr-2" />Save Settings
-      </Button>
+          <button
+            onClick={handleTestTelegram}
+            disabled={tgLoading}
+            className="h-10 px-6 rounded-lg bg-white text-black text-[13px] font-medium hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            {tgLoading ? (
+              <div className="w-3.5 h-3.5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+            ) : null}
+            <span>Проверить Telegram алерт</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Email / SMTP Section */}
+      <div className="border border-white/10 rounded-xl bg-white/[0.02] p-6 sm:p-8 space-y-6">
+        <div>
+          <h2 className="text-[16px] font-semibold text-white">Email (SMTP) Notifications</h2>
+          <p className="text-[13px] text-zinc-400 mt-1">
+            Receive dark-mode HTML alert emails when a target service goes down.
+          </p>
+        </div>
+
+        <div className="space-y-4 pt-2">
+          <div>
+            <label className="block text-[12px] font-mono uppercase text-zinc-400 mb-2">
+              Notification Email Recipient
+            </label>
+            <input
+              type="email"
+              placeholder="Например: admin@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full h-10 px-4 rounded-lg bg-black border border-white/10 text-white text-[13px] font-mono focus:outline-none focus:border-white/30 transition-colors"
+            />
+          </div>
+
+          {emailStatus && (
+            <div
+              className={`p-4 rounded-lg border text-[13px] font-mono ${emailStatus.type === 'success' ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300' : 'bg-red-950/30 border-red-500/30 text-red-300'}`}
+            >
+              {emailStatus.type === 'success' ? '✓ ' : '✕ '}
+              {emailStatus.text}
+            </div>
+          )}
+
+          <button
+            onClick={handleTestEmail}
+            disabled={emailLoading}
+            className="h-10 px-6 rounded-lg bg-white text-black text-[13px] font-medium hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            {emailLoading ? (
+              <div className="w-3.5 h-3.5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+            ) : null}
+            <span>Проверить Email алерт</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

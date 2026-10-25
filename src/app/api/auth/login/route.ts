@@ -1,31 +1,34 @@
-import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import prisma from "@/lib/prisma";
-import { signAccessToken, signRefreshToken, getRefreshExpiry } from "@/lib/jwt";
-import { loginSchema } from "@/lib/validators";
+import { prisma } from '@/lib/poller';
+import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
-    const v = loginSchema.safeParse(body);
-    if (!v.success) return NextResponse.json({ error: "Validation failed" }, { status: 400 });
+    const { email, password } = await req.json();
 
-    const user = await prisma.user.findUnique({ where: { email: v.data.email } });
-    if (!user) return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Заполните все поля' }, { status: 400 });
+    }
 
-    const valid = await bcrypt.compare(v.data.password, user.passwordHash);
-    if (!valid) return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    let user = await prisma.user.findUnique({ where: { email } });
 
-    const accessToken = signAccessToken({ userId: user.id, email: user.email });
-    const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
+    // Автоматическое создание дефолтного админа для удобства первого входа
+    if (!user && email === 'admin@uptimeguard.dev' && password === 'password123') {
+      user = await prisma.user.create({
+        data: { email, password, name: 'Admin Account' },
+      });
+    }
 
-    await prisma.session.deleteMany({ where: { userId: user.id, expiresAt: { lt: new Date() } } });
-    await prisma.session.create({ data: { userId: user.id, refreshToken, expiresAt: getRefreshExpiry() } });
+    if (!user || user.password !== password) {
+      return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 });
+    }
 
-    const { passwordHash, ...safe } = user;
-    return NextResponse.json({ data: { user: safe, accessToken, refreshToken } });
-  } catch (error: any) {
-    console.error("[Login]", error);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    const token = `token_${user.id}_${Date.now()}`;
+
+    return NextResponse.json({
+      token,
+      user: { id: user.id, email: user.email, name: user.name },
+    });
+  } catch (err) {
+    return NextResponse.json({ error: 'Ошибка авторизации' }, { status: 500 });
   }
 }
